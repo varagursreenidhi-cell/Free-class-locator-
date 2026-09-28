@@ -1,2 +1,2 @@
-# Free-class-locator-
+#index.html
 Free Classroom Locator Web Application
