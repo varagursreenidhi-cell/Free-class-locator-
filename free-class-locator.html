@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Free Class Locator</title>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{box-sizing:border-box;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
+--bg:#14101f;--card:#211a33;--ink:#f0e8d4;--mut:#a89fc0;--free:#5b8c2a;--freeb:#7cb342;--busy:#8f3326;--gold:#e0a030;--line:#3b2f5a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "DM Sans",system-ui,sans-serif;color-scheme:dark}
+main{max-width:860px;margin:0 auto;padding:16px}
+h1,h2,.px{font-family:Silkscreen,monospace;font-weight:700;letter-spacing:.02em}
+h1{font-size:26px;margin:8px 0 4px}h2{font-size:17px;margin:0}
+.sub{color:var(--mut);margin:0 0 16px}
+.card{background:var(--card);border:3px solid var(--line);padding:14px;margin-bottom:16px;box-shadow:4px 4px 0 #0a0712}
+.ask{display:flex;gap:8px;margin-top:10px}
+input,select,button{font:inherit;color:var(--ink);background:#150f24;border:2px solid var(--line);padding:10px;border-radius:0;min-height:44px}
+input[type=text]{flex:1;min-width:0}
+button{cursor:pointer}
+button.go{background:var(--free);border-color:var(--freeb);font-family:Silkscreen,monospace;font-weight:700}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{background:#150f24;border:1px solid var(--line);padding:2px 8px;font-size:13px;cursor:pointer}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;align-items:end}
+.ctl label{display:flex;flex-direction:column;font-size:13px;color:var(--mut);gap:2px}
+.chk{flex-direction:row!important;align-items:center;gap:8px!important;min-height:44px;color:var(--ink)!important}
+.chk input{min-height:auto;width:18px;height:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.room{padding:10px;border:3px solid;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:86px}
+.room.free{background:#26401a;border-color:var(--freeb)}
+.room.busy{background:#3a1712;border-color:var(--busy);opacity:.85}
+.room b{font-family:Silkscreen,monospace;font-size:18px}
+.room small{color:var(--mut)}
+.ac{align-self:flex-start;font-size:12px;padding:0 6px;border:1px solid var(--gold);color:var(--gold);cursor:pointer;background:none;min-height:24px}
+.ac.off{border-color:var(--line);color:var(--mut)}
+.res{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}
+.res li{background:#26401a;border-left:6px solid var(--freeb);padding:8px 10px}
+.note{font-size:13px;color:var(--mut)}
+.msg{color:var(--gold)}
+@media(prefers-reduced-motion:no-preference){.room{transition:transform .1s}.room:active{transform:translate(2px,2px)}}
+</style></head><body><main>
+<h1>Free Class Locator</h1>
+<p class="sub">Find rooms nobody has booked, floor by floor, from the 9 timetables of Odd Semester 2026-27.</p>
+
+<section class="card" aria-labelledby="ai">
+<h2 id="ai">Room finder</h2>
+<div class="ask"><input type="text" id="q" placeholder="I need an AC room on the ground floor for the next 2 hours" aria-label="Describe the room you need">
+<button class="go" id="go">Find</button></div>
+<div class="chips" id="ex"></div>
+<div id="out" aria-live="polite"></div>
+</section>
+
+<section class="card" aria-labelledby="fl">
+<h2 id="fl">Floor grid</h2>
+<div class="ctl" style="margin-top:10px">
+<label>Day<select id="day"></select></label>
+<label>Time<input type="time" id="time"></label>
+<label>Free for at least<select id="dur"><option value="0">Any</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="180">3 hours</option></select></label>
+<button id="now">Use now</button>
+<label class="chk"><input type="checkbox" id="fo"> Free rooms only</label>
+<label class="chk"><input type="checkbox" id="fa"> AC only</label>
+</div>
+<div id="grid"></div>
+<p class="note">Rooms come from the timetables only. AC is not in the data, so labs (107, 108, 309) start marked AC. Tap an AC tag to correct it. Rooms used by other departments do not appear here. Classes run 9:00 to 4:50.</p>
+</section>
+</main>
+<script>
+const PS=[[540,590],[590,640],[650,700],[700,750],[750,800],[800,850],[850,900],[910,960],[960,1010]];
+const DAYS=["Mon","Tue","Wed","Thu","Fri"];
+const S=[
+["II BME","602",["H H H H . 107+309 107+309 . .","H H H H . 106 106 . .","H H H . . 106 H . .","H H H H . . . 107+309 107+309","H H H H . . . H H"]],
+["II ECE-DS A","416",["H H H H . 602 602 309+107 309+107","H H H H . 602 . 106 106","H H H H . . 106 . .","H H H H . 309+107 309+107 . .","H H H H . . . . ."]],
+["II ECE-DS B","411",[". . 309+107 309+107 . H H H H","309+107 309+107 . . . H H H H","401 . . . . H H H H","401 401 106 106 . H H H H","106 . . . . H H H H"]],
+["III BME","211",["625 625 107 107 . H H H H","108 108 625 . . H H H H",". . . . . H H H H",". . . 108 . H H H H","108 . . . . H H H H"]],
+["III ECE-A","518",["H H H H . 625 625 . .","H H H H . . 625 . .","H H H H . . . 108+309 108+309","H H H H . . . . .","H H H H . 108+309 108+309 . ."]],
+["III ECE-B","518",["108+309 108+309 . . . H H H H","625 625 . . . H H H H","625 . . . . H H H H","108+309 108+309 . . . H H H H",". . . . . H H H H"]],
+["III ECE-DS","519",["H H H H . . . . .","H H H H . 108+107 108+107 . .","H H H H . . . 625 625","H H H H . . . . .","H H H H . 625 . 108+107 108+107"]],
+["IV ECE-A","225",["H . H H . . . . .","H H H H . . . . .","H 108 H H . . . . .","H H H H . . . . .","H H H H . . . . ."]],
+["IV ECE-B","227",["H H H H . . . . .","H H H H . . . . .","H H H H . . . . .","H H 108 H . . . . .","H H H . . . . . ."]]];
+const busy={};
+S.forEach(([n,h,rows])=>rows.forEach((r,d)=>r.split(" ").forEach((tk,p)=>{
+ if(tk==".")return;(tk=="H"?[h]:tk.split("+")).forEach(rm=>{((busy[rm]??={})[d]??=[]).push({s:PS[p][0],e:PS[p][1],n});});})));
+const rooms=Object.keys(busy).sort();
+let ac={};rooms.forEach(r=>ac[r]=["107","108","309"].includes(r));
+try{Object.assign(ac,JSON.parse(localStorage.getItem("ac")||"{}"))}catch(e){}
+const fmt=m=>{const h=Math.floor(m/60),mm=String(m%60).padStart(2,"0");return((h+11)%12+1)+":"+mm+(h<12?" am":" pm")};
+const dur=m=>m>=60?Math.floor(m/60)+" h"+(m%60?" "+m%60+" min":""):m+" min";
+function status(rm,d,t){
+ const L=(busy[rm][d]||[]).slice().sort((a,b)=>a.s-b.s);
+ const cur=L.find(x=>x.s<=t&&t<x.e);
+ if(cur){let e=cur.e;for(const x of L)if(x.s<=e&&x.e>e)e=x.e;return{busy:true,until:e,n:cur.n}}
+ const nx=L.find(x=>x.s>t);return{busy:false,until:nx?nx.s:1010};
+}
+const floorOf=r=>+r[0];
+const st={day:0,t:600,dur:0,fo:false,fa:false,fl:null,ac:null};
+function init(){
+ const dsel=document.getElementById("day");dsel.innerHTML=DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join("");
+ dsel.onchange=()=>{st.day=+dsel.value;draw()};
+ time.onchange=()=>{const[h,m]=time.value.split(":").map(Number);st.t=h*60+m;draw()};
+ dur_.onchange=()=>{st.dur=+dur_.value;draw()};
+ fo.onchange=()=>{st.fo=fo.checked;draw()};fa.onchange=()=>{st.fa=fa.checked;draw()};
+ now.onclick=setNow;setNow();
+ ["AC room on the ground floor for 2 hours","free room on floor 6 now","non-AC room at 2pm for 1 hour","room on Wednesday at 11am for 90 minutes"].forEach(x=>{
+  const c=document.createElement("button");c.className="chip";c.textContent=x;c.onclick=()=>{q.value=x;find()};ex.appendChild(c)});
+ go.onclick=find;q.onkeydown=e=>{if(e.key=="Enter")find()};
+}
+function setNow(){const n=new Date();let d=n.getDay()-1,t=n.getHours()*60+n.getMinutes();
+ if(d<0||d>4||t<540||t>=1010){d=d<0||d>4?0:d;t=Math.max(540,Math.min(t,600))}
+ st.day=d;st.t=t;sync();draw()}
+function sync(){day.value=st.day;time.value=String(Math.floor(st.t/60)).padStart(2,"0")+":"+String(st.t%60).padStart(2,"0")}
+function tile(rm,s){
+ const el=document.createElement("div");el.className="room "+(s.busy?"busy":"free");
+ el.innerHTML=`<b>${rm}</b><small>${s.busy?"Busy until "+fmt(s.until)+" ("+s.n+")":"Free "+(s.until>=1010?"until 4:50 pm":"until "+fmt(s.until))+" · "+dur(s.until-st.t)}</small>`;
+ const b=document.createElement("button");b.className="ac"+(ac[rm]?"":" off");b.textContent=ac[rm]?"AC":"Non-AC";
+ b.onclick=()=>{ac[rm]=!ac[rm];try{localStorage.setItem("ac",JSON.stringify(ac))}catch(e){}draw();};
+ el.appendChild(b);return el}
+function draw(){
+ const g=document.getElementById("grid");g.innerHTML="";
+ const fls=[...new Set(rooms.map(floorOf))].sort((a,b)=>b-a);
+ fls.forEach(f=>{
+  const rs=rooms.filter(r=>floorOf(r)==f).map(r=>[r,status(r,st.day,st.t)]).filter(([r,s])=>
+   (!st.fo||!s.busy)&&(!st.fa||ac[r])&&(!st.dur||(!s.busy&&s.until-st.t>=st.dur)));
+  const h=document.createElement("h2");h.style.marginTop="16px";h.textContent="Floor "+f+(f==1?" (ground)":"");g.appendChild(h);
+  const w=document.createElement("div");w.className="grid";
+  if(!rs.length){w.innerHTML='<p class="note">No rooms match on this floor.</p>'}
+  rs.forEach(([r,s])=>w.appendChild(tile(r,s)));g.appendChild(w)});
+}
+function parse(s){
+ s=s.toLowerCase();const o={};
+ if(/non[- ]?ac|without ac|no ac/.test(s))o.ac=false;else if(/\bac\b|a\/c|air.?con/.test(s))o.ac=true;
+ if(/ground/.test(s))o.fl=1;else{const w={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6};
+  const m=s.match(/(\d)(?:st|nd|rd|th)?\s*floor/)||s.match(/floor\s*(\d)/);
+  if(m)o.fl=+m[1];else for(const k in w)if(s.includes(k+" floor"))o.fl=w[k]}
+ let m;
+ if(/half an hour/.test(s))o.dur=30;else if(/\ban hour\b/.test(s))o.dur=60;
+ else if(m=s.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/))o.dur=Math.round(m[1]*60);
+ else if(m=s.match(/(\d+)\s*(?:minutes?|mins?)/))o.dur=+m[1];
+ const dn=["mon","tue","wed","thu","fri"];dn.forEach((d,i)=>{if(new RegExp("\\b"+d).test(s))o.day=i});
+ if(/tomorrow/.test(s)){const d=new Date().getDay();o.day=Math.min(4,d%5)}
+ if(m=s.match(/(?:at|from|after)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/)){let h=+m[1];const mp=m[3];
+  if(mp=="pm"&&h<12)h+=12;if(mp=="am"&&h==12)h=0;if(!mp&&h<9)h+=12;o.t=h*60+(+m[2]||0)}
+ return o}
+function find(){
+ const o=parse(q.value);if(o.day!=null)st.day=o.day;if(o.t!=null)st.t=o.t;
+ if(o.day==null&&o.t==null)setNow();else sync();
+ const need=o.dur||60;
+ const mk=(strict)=>rooms.filter(r=>(o.fl==null||floorOf(r)==o.fl)&&(o.ac==null||ac[r]==o.ac)).map(r=>[r,status(r,st.day,st.t)]).filter(([r,s])=>!s.busy&&(!strict||s.until-st.t>=need)).sort((a,b)=>b[1].until-a[1].until);
+ let ex=mk(true),near=false;if(!ex.length){ex=mk(false);near=true}
+ const tags=[DAYS[st.day]+" "+fmt(st.t),"needs "+dur(need)+(o.dur?"":" (assumed)"),o.fl?"floor "+o.fl:"any floor",o.ac==null?"AC or not":o.ac?"AC":"non-AC"];
+ out.innerHTML='<div class="chips">'+tags.map(t=>`<span class="chip">${t}</span>`).join("")+"</div>"+
+  (ex.length?(near?'<p class="msg">No room stays free that long. These are free now for less time:</p>':"")+'<ul class="res">'+ex.map(([r,s])=>`<li><b class="px">Room ${r}</b> · floor ${floorOf(r)} · ${ac[r]?"AC":"Non-AC"}<br><small>Free ${s.until>=1010?"until 4:50 pm":"until "+fmt(s.until)} (${dur(s.until-st.t)})</small></li>`).join("")+"</ul>":'<p class="msg">No free room matches. Try another floor, time, or drop the AC filter.</p>');
+ draw()}
+const q=document.getElementById("q"),go=document.getElementById("go"),out=document.getElementById("out"),ex=document.getElementById("ex"),
+ time=document.getElementById("time"),dur_=document.getElementById("dur"),fo=document.getElementById("fo"),fa=document.getElementById("fa"),now=document.getElementById("now"),day=document.getElementById("day");
+init();
+</script></body></html>
